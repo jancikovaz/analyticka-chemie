@@ -1,0 +1,544 @@
+<!-- Soubor: index.html -->
+<!-- Ve stejné složce musí být soubor stav.txt -->
+<!-- Pokud je v souboru stav.txt text ZAPNUTO, hra se spustí. -->
+<!-- Pokud je tam VYPNUTO nebo něco jiného, hra se nespustí. -->
+
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kvízová hra</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      color: #000;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #eef2ff, #f8fafc);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1000px;
+      background: white;
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin: 0;
+    }
+
+    .score {
+      background: #eef2ff;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+
+    .question {
+      text-align: center;
+      font-size: clamp(1.5rem, 4vw, 2.8rem);
+      font-weight: 800;
+      margin: 30px 0;
+      line-height: 1.25;
+    }
+
+    .answers {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .answer {
+      flex: 1;
+      border: 2px solid #e5e7eb;
+      background: #f9fafb;
+      border-radius: 18px;
+      padding: 26px 14px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s;
+      min-height: 95px;
+    }
+
+    .answer:hover:not(:disabled) {
+      transform: translateY(-3px);
+      border-color: #6366f1;
+      background: #eef2ff;
+    }
+
+    .answer.correct {
+      background: #dcfce7;
+      border-color: #22c55e;
+    }
+
+    .answer.wrong {
+      background: #fee2e2;
+      border-color: #ef4444;
+    }
+
+    .answer:disabled {
+      cursor: default;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 14px 28px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: #4f46e5;
+      transition: 0.2s;
+    }
+
+    button:hover:not(:disabled) {
+      background: #4338ca;
+      transform: translateY(-2px);
+    }
+
+    button:disabled {
+      background: #c7d2fe;
+      cursor: not-allowed;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .result-title {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 10px;
+    }
+
+    .final-score {
+      text-align: center;
+      font-size: 3rem;
+      font-weight: 900;
+      margin-bottom: 30px;
+    }
+
+    .summary {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .summary-item {
+      padding: 16px;
+      border-radius: 16px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+
+    .summary-question {
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .summary-answer {
+      line-height: 1.6;
+    }
+
+    .ok {
+      color: #16a34a !important;
+      font-weight: 900;
+    }
+
+    .bad {
+      color: #dc2626 !important;
+      font-weight: 900;
+    }
+
+    .blocked {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #dc2626 !important;
+    }
+
+    @media (max-width: 700px) {
+      .app {
+        padding: 22px;
+      }
+
+      .answers {
+        flex-direction: column;
+      }
+
+      .answer {
+        width: 100%;
+        min-height: auto;
+      }
+
+      header {
+        justify-content: center;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <section id="blockedScreen" class="hidden">
+      <div class="blocked">
+        Hra je momentálně vypnutá.
+      </div>
+    </section>
+
+    <section id="gameScreen" class="hidden">
+      <header>
+        <h1>Kvízová hra</h1>
+        <div class="score">
+          Skóre: <span id="score">0</span> / <span id="total">15</span>
+        </div>
+      </header>
+
+      <div id="question" class="question"></div>
+      <div id="answers" class="answers"></div>
+
+      <div class="controls">
+        <button id="nextBtn" disabled>Další</button>
+      </div>
+    </section>
+
+    <section id="resultScreen" class="hidden">
+      <h2 class="result-title">Konec hry</h2>
+      <div id="finalScore" class="final-score"></div>
+      <div id="summary" class="summary"></div>
+    </section>
+  </main>
+
+  <script>
+    const data = [
+      {
+        text: "Bod, kdy veškerá stanovená látka zreaguje s odměrným činidlem, se nazývá:",
+        texts: ["bod skápnutí", "bod nasycení", "bod ekvivalence", "bod titrace"],
+        correct: 2
+      },
+      {
+        text: "Manganometrie patří k titracím:",
+        texts: ["srážecím", "neutralizačním", "redoxním", "komplexotvorným"],
+        correct: 2
+      },
+      {
+        text: "Odměrný roztok je roztok:",
+        texts: [
+          "jehož přesný objem máme vypočítat",
+          "jehož koncentraci máme vypočítat",
+          "který se nachází v titrační baňce",
+          "který se nachází v byretě"
+        ],
+        correct: 3
+      },
+      {
+        text: "Kolorimetrie je metoda:",
+        texts: ["optická", "elektrochemická", "separační", "titrační"],
+        correct: 0
+      },
+      {
+        text: "Mezi acidobazické indikátory nepatří:",
+        texts: ["methyloranž", "fenolftalein", "murexid", "methylčerveň"],
+        correct: 2
+      },
+      {
+        text: "Při acidimetrii je v byretě:",
+        texts: [
+          "roztok kyseliny",
+          "roztok zásady",
+          "roztok oxidačního činidla",
+          "roztok redukčního činidla"
+        ],
+        correct: 0
+      },
+      {
+        text: "Který acidobazický indikátor je v kyselině bezbarvý a v zásadě růžovofialový?",
+        texts: ["methylčerveň", "methyloranž", "lakmus", "fenolftalein"],
+        correct: 3
+      },
+      {
+        text: "Růžově zbarvený roztok obsahuje:",
+        texts: ["Cu²⁺", "Ni²⁺", "Fe²⁺", "Co²⁺"],
+        correct: 3
+      },
+      {
+        text: "Žlutě barví plamen:",
+        texts: ["K", "Na", "Cs", "Li"],
+        correct: 1
+      },
+      {
+        text: "Reakcí uhličitanů s kyselinou sírovou vzniká:",
+        texts: ["oxid siřičitý", "oxid uhličitý", "oxid sírový", "sulfan"],
+        correct: 1
+      },
+      {
+        text: "Při důkazu uhlíku v organické látce se uhlík převede na:",
+        texts: ["saze", "oxid uhličitý", "oxid uhelnatý", "sirouhlík"],
+        correct: 1
+      },
+      {
+        text: "Lugolův roztok se používá k důkazu:",
+        texts: ["bílkovin", "redukujících sacharidů", "škrobu", "neredukujících sacharidů"],
+        correct: 2
+      },
+      {
+        text: "Roztok obsahující měďnaté kationty je:",
+        texts: ["modrý", "zelený", "fialový", "růžový"],
+        correct: 0
+      },
+      {
+        text: "K důkazu bílkovin se používá:",
+        texts: ["proteinová reakce", "peptidová reakce", "biuretová reakce", "Fehlingova reakce"],
+        correct: 2
+      },
+      {
+        text: "Baryum barví plamen:",
+        texts: ["fialově", "zeleně", "karmínově červeně", "cihlově červeně"],
+        correct: 1
+      }
+    ];
+
+    const QUESTIONS_PER_GAME = 15;
+
+    let questions = [];
+    let currentIndex = 0;
+    let score = 0;
+    let selected = false;
+    let results = [];
+
+    const blockedScreen = document.getElementById("blockedScreen");
+    const questionEl = document.getElementById("question");
+    const answersEl = document.getElementById("answers");
+    const scoreEl = document.getElementById("score");
+    const totalEl = document.getElementById("total");
+    const nextBtn = document.getElementById("nextBtn");
+    const gameScreen = document.getElementById("gameScreen");
+    const resultScreen = document.getElementById("resultScreen");
+    const finalScoreEl = document.getElementById("finalScore");
+    const summaryEl = document.getElementById("summary");
+
+    totalEl.textContent = QUESTIONS_PER_GAME;
+
+    async function checkGameState() {
+      try {
+        const response = await fetch("stav.txt", {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          showBlockedScreen();
+          return;
+        }
+
+        const state = await response.text();
+
+        if (state.trim() === "ZAPNUTO") {
+          startGame();
+        } else {
+          showBlockedScreen();
+        }
+      } catch (error) {
+        showBlockedScreen();
+      }
+    }
+
+    function showBlockedScreen() {
+      blockedScreen.classList.remove("hidden");
+      gameScreen.classList.add("hidden");
+      resultScreen.classList.add("hidden");
+    }
+
+    function shuffle(array) {
+      const copy = [...array];
+
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+
+      return copy;
+    }
+
+    function prepareQuestion(item) {
+      const correctText = item.texts[item.correct];
+
+      const shuffledAnswers = shuffle(item.texts).map(answerText => ({
+        text: answerText,
+        isCorrect: answerText === correctText
+      }));
+
+      return {
+        text: item.text,
+        answers: shuffledAnswers,
+        correctText
+      };
+    }
+
+    function startGame() {
+      questions = shuffle(data)
+        .slice(0, QUESTIONS_PER_GAME)
+        .map(prepareQuestion);
+
+      currentIndex = 0;
+      score = 0;
+      selected = false;
+      results = [];
+
+      scoreEl.textContent = score;
+
+      blockedScreen.classList.add("hidden");
+      gameScreen.classList.remove("hidden");
+      resultScreen.classList.add("hidden");
+
+      showQuestion();
+    }
+
+    function showQuestion() {
+      selected = false;
+      nextBtn.disabled = true;
+      answersEl.innerHTML = "";
+
+      const currentQuestion = questions[currentIndex];
+      questionEl.textContent = currentQuestion.text;
+
+      currentQuestion.answers.forEach(answer => {
+        const button = document.createElement("button");
+        button.className = "answer";
+        button.textContent = answer.text;
+
+        button.addEventListener("click", () => {
+          selectAnswer(button, answer);
+        });
+
+        answersEl.appendChild(button);
+      });
+    }
+
+    function selectAnswer(button, answer) {
+      if (selected) return;
+
+      selected = true;
+      nextBtn.disabled = false;
+
+      const currentQuestion = questions[currentIndex];
+      const isCorrect = answer.isCorrect;
+
+      if (isCorrect) {
+        button.classList.add("correct");
+        score++;
+        scoreEl.textContent = score;
+      } else {
+        button.classList.add("wrong");
+      }
+
+      results.push({
+        question: currentQuestion.text,
+        selectedAnswer: answer.text,
+        correctAnswer: currentQuestion.correctText,
+        isCorrect
+      });
+
+      const answerButtons = document.querySelectorAll(".answer");
+
+      answerButtons.forEach(btn => {
+        btn.disabled = true;
+
+        if (btn.textContent === currentQuestion.correctText) {
+          btn.classList.add("correct");
+        }
+      });
+    }
+
+    function nextQuestion() {
+      currentIndex++;
+
+      if (currentIndex >= questions.length) {
+        showResults();
+      } else {
+        showQuestion();
+      }
+    }
+
+    function showResults() {
+      gameScreen.classList.add("hidden");
+      resultScreen.classList.remove("hidden");
+
+      finalScoreEl.textContent = `${score} / ${questions.length}`;
+      summaryEl.innerHTML = "";
+
+      results.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "summary-item";
+
+        const question = document.createElement("div");
+        question.className = "summary-question";
+        question.textContent = item.question;
+
+        const answer = document.createElement("div");
+        answer.className = "summary-answer";
+
+        if (item.isCorrect) {
+          answer.innerHTML = `
+            <div>
+              <span class="ok">✓</span>
+              ${item.selectedAnswer}
+            </div>
+          `;
+        } else {
+          answer.innerHTML = `
+            <div>
+              <span class="bad">✗</span>
+              ${item.selectedAnswer}
+            </div>
+            <div>
+              Správně:
+              <span class="ok">✓</span>
+              ${item.correctAnswer}
+            </div>
+          `;
+        }
+
+        div.appendChild(question);
+        div.appendChild(answer);
+        summaryEl.appendChild(div);
+      });
+    }
+
+    nextBtn.addEventListener("click", nextQuestion);
+
+    checkGameState();
+  </script>
+</body>
+</html>
